@@ -1,17 +1,29 @@
 <?php
 // public/index.php
 require_once '../config/database.php';
+require_once '../includes/functions.php';
+
+// Define base URL for uploads
+$uploads_base_url = '/uploads/';
 
 // Get featured products from database
 $featured_products = [];
-$sql = "SELECT * FROM products WHERE featured = 1 AND status = 'active' LIMIT 3";
+$sql = "SELECT id, name, description, image FROM products WHERE featured = 1 AND status = 'active' LIMIT 3";
 $result = $conn->query($sql);
 
-if ($result && $result->num_rows > 0) {
+if ($result === false) {
+    // Handle query error (log or display a message)
+    error_log('Database query error: ' . $conn->error);
+    // Optionally, display a user-friendly message
+    // echo "<p>Sorry, we are unable to load featured products at this time.</p>";
+} elseif ($result->num_rows > 0) {
     while($row = $result->fetch_assoc()) {
         $featured_products[] = $row;
     }
 }
+
+// Configuration: base number of clients to add to actual count for display purposes
+$base_client_count = 280;
 
 // Get quick stats
 $stats = [
@@ -22,11 +34,17 @@ $stats = [
 
 // Try to get actual stats from database if available
 $clients_sql = "SELECT COUNT(DISTINCT email) as total_clients FROM contacts";
-$clients_result = $conn->query($clients_sql);
-if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
-    $stats['clients'] = $clients_row['total_clients'] + 280; // Base + actual
+$clients_result = null;
+if (isset($conn) && $conn) {
+    $clients_result = $conn->query($clients_sql);
 }
+if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
+    // Add base_client_count to actual client count for marketing or legacy reasons
+<?php
+define('ROOT_PATH', dirname(__DIR__));
+include ROOT_PATH . '/includes/header.php';
 ?>
+}
 
 <?php include '../includes/header.php'; ?>
 
@@ -37,12 +55,12 @@ if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
             <div class="flex flex-col md:flex-row items-center">
                 <div class="md:w-1/2 mb-12 md:mb-0">
                     <h2 class="text-4xl md:text-8xl font-bold mb-4">
-                        <span class="text-green-500">KOMODO</span><br>
-                        <span class="text-white">INDUSTRIAL</span><br>
-                        <span class="text-white">INDONESIA</span>
+                        <span class="text-green-500">BARRA</span><br>
+                        <span class="text-white">AGENCY</span><br>
+                        <span class="text-white">DIGITAL</span>
                     </h2>
-                    <p class="mt-8 text-lg text-gray-300 max-w-lg" data-en="Focusing on the production of stainless steel tableware and cooking utensils." data-id="Berfokus pada produksi peralatan makan dan perlengkapan masak berbahan stainless steel.">
-                        Focusing on the production of stainless steel tableware and cooking utensils.
+                    <p class="mt-8 text-lg text-gray-300 max-w-lg" data-en="Focusing on the services digital products solution." data-id="Berfokus pada produksi peralatan makan dan perlengkapan masak berbahan stainless steel.">
+                        Focusing on the services of digital products solution.
                     </p>
                     <div class="mt-12 flex space-x-4">
                         <a href="products.php" class="px-8 py-3 bg-green-600 text-black font-medium rounded-full hover:bg-green-500 transition duration-300" data-en="Explore Products" data-id="Jelajahi Produk">
@@ -57,7 +75,7 @@ if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
                     <div class="relative">
                         <div class="absolute -inset-4 bg-green-500 rounded-2xl opacity-20 blur"></div>
                         <img src="https://lh3.googleusercontent.com/geougc-cs/AB3l90DZuGhDzulGx3KbREbEp678k5PxJS9UEvidpparridlDxzNfae3D5_HeS9A1E3V6J_6v-ic9wNz0MAyshb2boAH8GN_y16SyR1giNTd1fUV7sd2VA18_LWXzSsQ5_BBC9D3HJunQDvA0FVx=w600-h450-p" 
-                             alt="Komodo Stainless Cookware" 
+                             alt="Barra Agency Digital" 
                              class="relative rounded-xl w-full max-w-md shadow-2xl">
                     </div>
                 </div>
@@ -77,15 +95,15 @@ if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
     <div class="container mx-auto px-6">
         <div class="text-center mb-16">
             <h2 class="text-4xl md:text-5xl font-bold mb-4" data-en="Featured Products" data-id="Produk Unggulan">Featured <span class="text-green-500">Products</span></h2>
-            <p class="text-gray-400 max-w-2xl mx-auto" data-en="Designed for home kitchens, cafes, and restaurants, made with the finest stainless steel." data-id="Dirancang untuk dapur rumahan, kafe & restoran yang dibuat dengan bahan stainless steel terbaik.">
-                Designed for home kitchens, cafes, and restaurants, made with the finest stainless steel.
+            <p class="text-gray-400 max-w-2xl mx-auto" data-en="Designed for social media & product packaging." data-id="Desain untuk sosial media dan produk.">
+                Designed for social media & product packaging.
             </p>
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <?php if (!empty($featured_products)): ?>
-                <?php foreach($featured_products as $product): ?>
-                <div class="project-card bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition duration-300 fade-in">
+                        <img src="<?php echo $uploads_base_url . htmlspecialchars($product['image']); ?>" 
+                             alt="<?php echo htmlspecialchars($product['name']); ?>" 
+                             class="w-full h-full object-cover transition duration-500 hover:scale-105">
                     <div class="relative overflow-hidden h-64">
                         <img src="../uploads/<?php echo htmlspecialchars($product['image']); ?>" 
                              alt="<?php echo htmlspecialchars($product['name']); ?>" 
@@ -100,11 +118,11 @@ if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
                     </div>
                 </div>
                 <?php endforeach; ?>
-            <?php else: ?>
-                <!-- Fallback static products if no database products -->
-                <div class="project-card bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition duration-300 fade-in">
+                        <img src="<?php echo $uploads_base_url; ?>desain.jpg" 
+                             alt="Professional Cookware Set" 
+                             class="w-full h-full object-cover transition duration-500 hover:scale-105">
                     <div class="relative overflow-hidden h-64">
-                        <img src="https://www.nagakomodo.co.id/uploads/2025/07/460079fa21b586104f386bb2328fa12b_1b673a35f9b27e042037eebd785f1410.jpg" 
+                        <img src="../uploads/desain.jpg" 
                              alt="Professional Cookware Set" 
                              class="w-full h-full object-cover transition duration-500 hover:scale-105">
                     </div>
@@ -146,7 +164,7 @@ if ($clients_result && $clients_row = $clients_result->fetch_assoc()) {
                 <div class="text-gray-400 text-xl" data-en="Years of Experience" data-id="Tahun Pengalaman">Years of Experience</div>
             </div>
         </div>
-    </div>
+<?php include ROOT_PATH . '/includes/footer.php'; ?>
 </section>
 
 <?php include '../includes/footer.php'; ?>
