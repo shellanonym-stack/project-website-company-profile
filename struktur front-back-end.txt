@@ -1,0 +1,21 @@
+C:\xampp\htdocs\komodo_industrial\
+├── config/
+│   └── database.php              # Hanya untuk koneksi database
+├── includes/
+│   ├── header.php
+│   ├── footer.php 
+│   └── functions.php             # ✅ Letakkan functions.php di sini
+├── public/
+│   ├── index.php
+│   ├── about.php
+│   ├── products.php
+│   └── contact.php
+├── admin/
+│   ├── login.php
+│   ├── index.php
+│   └── products.php
+├── assets/
+│   ├── css/
+│   ├── js/
+│   └── images/
+└── uploads/
