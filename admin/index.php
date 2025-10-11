@@ -1,255 +1,221 @@
 <?php
-// admin/index.php
-session_start();
-require_once '../config/database.php';
-require_once '../includes/functions.php';
+/**
+ * Admin Dashboard
+ * PT Komodo Industrial Indonesia
+ */
 
-// Authentication check
-function checkAuth() {
-    if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-        header('Location: login.php');
-        exit;
-    }
-}
+define('APP_ACCESS', true);
 
-// Handle login
-if ($_POST['action'] ?? '' === 'login') {
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-    
-    try {
-        $database = new Database();
-        $db = $database->getConnection();
-        
-        $stmt = $db->prepare("SELECT * FROM admin_users WHERE username = ? AND is_active = 1");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
-        
-        if ($user && password_verify($password, $user['password_hash'])) {
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['admin_id'] = $user['id'];
-            $_SESSION['admin_username'] = $user['username'];
-            $_SESSION['admin_fullname'] = $user['full_name'];
-            
-            // Update last login
-            $stmt = $db->prepare("UPDATE admin_users SET last_login = NOW() WHERE id = ?");
-            $stmt->execute([$user['id']]);
-            
-            header('Location: index.php');
-            exit;
-        } else {
-            $login_error = 'Invalid username or password';
-        }
-    } catch (Exception $e) {
-        $login_error = 'Database error: ' . $e->getMessage();
-    }
-}
+// Load configurations
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/auth.php';
 
-// Check if user is logged in
-$is_logged_in = $_SESSION['admin_logged_in'] ?? false;
+// Check authentication
+requireLogin();
 
-if (!$is_logged_in && ($_POST['action'] ?? '') !== 'login') {
-    header('Location: login.php');
-    exit;
-}
+// Get statistics
+$stats = [
+    'total_products' => $db->fetchOne("SELECT COUNT(*) as count FROM products")['count'],
+    'active_products' => $db->fetchOne("SELECT COUNT(*) as count FROM products WHERE is_active = 1")['count'],
+    'featured_products' => $db->fetchOne("SELECT COUNT(*) as count FROM products WHERE is_featured = 1")['count'],
+    'total_contacts' => $db->fetchOne("SELECT COUNT(*) as count FROM contacts")['count'],
+    'unread_contacts' => $db->fetchOne("SELECT COUNT(*) as count FROM contacts WHERE is_read = 0")['count'],
+    'contacts_today' => $db->fetchOne("SELECT COUNT(*) as count FROM contacts WHERE DATE(created_at) = CURDATE()")['count']
+];
 
-// Get statistics for dashboard
-if ($is_logged_in) {
-    try {
-        $database = new Database();
-        $db = $database->getConnection();
-        
-        // Total products
-        $stmt = $db->query("SELECT COUNT(*) as total FROM products WHERE is_active = 1");
-        $total_products = $stmt->fetch()['total'];
-        
-        // Total contacts
-        $stmt = $db->query("SELECT COUNT(*) as total FROM contacts");
-        $total_contacts = $stmt->fetch()['total'];
-        
-        // Unread messages
-        $stmt = $db->query("SELECT COUNT(*) as total FROM contacts WHERE is_read = 0");
-        $unread_messages = $stmt->fetch()['total'];
-        
-        // Featured products
-        $stmt = $db->query("SELECT COUNT(*) as total FROM products WHERE is_featured = 1 AND is_active = 1");
-        $featured_products = $stmt->fetch()['total'];
-        
-    } catch (Exception $e) {
-        error_log("Dashboard error: " . $e->getMessage());
-    }
-}
+// Get recent contacts
+$recentContacts = $db->fetchAll(
+    "SELECT * FROM contacts ORDER BY created_at DESC LIMIT 5"
+);
+
+// Get recent products
+$recentProducts = $db->fetchAll(
+    "SELECT * FROM products ORDER BY created_at DESC LIMIT 5"
+);
+
+$pageTitle = 'Dashboard';
+include __DIR__ . '/includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - PT KOMODO INDUSTRIAL INDONESIA</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Navigation -->
-    <nav class="bg-gray-800 text-white shadow-lg">
-        <div class="container mx-auto px-4">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-4">
-                    <h1 class="text-xl font-bold">KOMODO INDUSTRIAL - Admin</h1>
+
+<!-- Dashboard Content -->
+<div class="p-6">
+    <!-- Page Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        <p class="text-gray-600">Welcome back, <?php echo htmlspecialchars(getCurrentAdmin()['full_name']); ?>!</p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Total Products -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total Products</p>
+                    <p class="text-3xl font-bold text-gray-900"><?php echo $stats['total_products']; ?></p>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-gray-300">Welcome, <?php echo htmlspecialchars($_SESSION['admin_fullname']); ?></span>
-                    <a href="logout.php" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
-                    </a>
+                <div class="bg-blue-100 rounded-full p-3">
+                    <i class="fas fa-box text-2xl text-blue-500"></i>
                 </div>
+            </div>
+            <div class="mt-4 text-sm">
+                <span class="text-green-600 font-medium"><?php echo $stats['active_products']; ?> active</span>
+                <span class="text-gray-400 mx-2">•</span>
+                <span class="text-gray-600"><?php echo $stats['featured_products']; ?> featured</span>
             </div>
         </div>
-    </nav>
 
-    <!-- Main Content -->
-    <div class="container mx-auto px-4 py-8">
-        <!-- Statistics Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-blue-100 rounded-lg">
-                        <i class="fas fa-box text-blue-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-sm font-medium text-gray-500">Total Products</h3>
-                        <p class="text-2xl font-semibold text-gray-900"><?php echo $total_products; ?></p>
-                    </div>
+        <!-- Total Contacts -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total Messages</p>
+                    <p class="text-3xl font-bold text-gray-900"><?php echo $stats['total_contacts']; ?></p>
+                </div>
+                <div class="bg-green-100 rounded-full p-3">
+                    <i class="fas fa-envelope text-2xl text-green-500"></i>
                 </div>
             </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-green-100 rounded-lg">
-                        <i class="fas fa-envelope text-green-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-sm font-medium text-gray-500">Contact Messages</h3>
-                        <p class="text-2xl font-semibold text-gray-900"><?php echo $total_contacts; ?></p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-yellow-100 rounded-lg">
-                        <i class="fas fa-star text-yellow-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-sm font-medium text-gray-500">Featured Products</h3>
-                        <p class="text-2xl font-semibold text-gray-900"><?php echo $featured_products; ?></p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-red-100 rounded-lg">
-                        <i class="fas fa-bell text-red-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-sm font-medium text-gray-500">Unread Messages</h3>
-                        <p class="text-2xl font-semibold text-gray-900"><?php echo $unread_messages; ?></p>
-                    </div>
-                </div>
+            <div class="mt-4 text-sm">
+                <span class="text-red-600 font-medium"><?php echo $stats['unread_contacts']; ?> unread</span>
+                <span class="text-gray-400 mx-2">•</span>
+                <span class="text-gray-600"><?php echo $stats['contacts_today']; ?> today</span>
             </div>
         </div>
 
         <!-- Quick Actions -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <a href="products.php" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
-                <div class="flex items-center">
-                    <div class="p-3 bg-blue-100 rounded-lg">
-                        <i class="fas fa-plus text-blue-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Manage Products</h3>
-                        <p class="text-gray-500">Add, edit, or remove products</p>
-                    </div>
-                </div>
-            </a>
-            
-            <a href="contacts.php" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
-                <div class="flex items-center">
-                    <div class="p-3 bg-green-100 rounded-lg">
-                        <i class="fas fa-envelope-open-text text-green-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-900">View Messages</h3>
-                        <p class="text-gray-500">Check contact form submissions</p>
-                    </div>
-                </div>
-            </a>
-            
-            <a href="content.php" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
-                <div class="flex items-center">
-                    <div class="p-3 bg-purple-100 rounded-lg">
-                        <i class="fas fa-edit text-purple-600 text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Manage Content</h3>
-                        <p class="text-gray-500">Edit website content</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="bg-white rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-900">Recent Contact Messages</h2>
-            </div>
-            <div class="p-6">
-                <?php
-                try {
-                    $stmt = $db->prepare("
-                        SELECT name, email, subject, message, created_at, is_read 
-                        FROM contacts 
-                        ORDER BY created_at DESC 
-                        LIMIT 5
-                    ");
-                    $stmt->execute();
-                    $recent_contacts = $stmt->fetchAll();
-                    
-                    if (empty($recent_contacts)) {
-                        echo '<p class="text-gray-500 text-center py-4">No recent messages</p>';
-                    } else {
-                        foreach ($recent_contacts as $contact) {
-                            $message_preview = strlen($contact['message']) > 100 
-                                ? substr($contact['message'], 0, 100) . '...' 
-                                : $contact['message'];
-                            ?>
-                            <div class="border-b border-gray-200 py-4 last:border-b-0">
-                                <div class="flex justify-between items-start">
-                                    <div class="flex-1">
-                                        <h4 class="font-semibold text-gray-900">
-                                            <?php echo htmlspecialchars($contact['name']); ?>
-                                            <?php if (!$contact['is_read']): ?>
-                                                <span class="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded ml-2">New</span>
-                                            <?php endif; ?>
-                                        </h4>
-                                        <p class="text-sm text-gray-600"><?php echo htmlspecialchars($contact['email']); ?></p>
-                                        <p class="text-sm text-gray-800 mt-1"><?php echo htmlspecialchars($message_preview); ?></p>
-                                    </div>
-                                    <div class="text-right text-sm text-gray-500">
-                                        <?php echo date('M j, Y', strtotime($contact['created_at'])); ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php
-                        }
-                    }
-                } catch (Exception $e) {
-                    echo '<p class="text-red-500 text-center py-4">Error loading recent messages</p>';
-                }
-                ?>
+        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-6 text-white">
+            <h3 class="text-lg font-semibold mb-4">Quick Actions</h3>
+            <div class="space-y-2">
+                <a href="modules/products/create.php" class="block bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm transition duration-200">
+                    <i class="fas fa-plus mr-2"></i> Add New Product
+                </a>
+                <a href="modules/contacts/index.php" class="block bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm transition duration-200">
+                    <i class="fas fa-inbox mr-2"></i> View Messages
+                </a>
             </div>
         </div>
     </div>
-</body>
-</html>
+
+    <!-- Recent Data Tables -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Contacts -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Messages</h3>
+                <a href="modules/contacts/index.php" class="text-sm text-green-600 hover:text-green-700 font-medium">
+                    View All <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php if (!empty($recentContacts)): ?>
+                            <?php foreach ($recentContacts as $contact): ?>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm text-gray-900">
+                                        <?php echo htmlspecialchars($contact['full_name']); ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">
+                                        <?php echo ucfirst($contact['subject']); ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">
+                                        <?php echo timeAgo($contact['created_at']); ?>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <?php if ($contact['is_read']): ?>
+                                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Read</span>
+                                        <?php else: ?>
+                                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-600">Unread</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                                    No messages yet
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Products -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Products</h3>
+                <a href="modules/products/index.php" class="text-sm text-green-600 hover:text-green-700 font-medium">
+                    View All <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Featured</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php if (!empty($recentProducts)): ?>
+                            <?php foreach ($recentProducts as $product): ?>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <img src="<?php echo htmlspecialchars($product['image']); ?>" 
+                                                 alt="<?php echo htmlspecialchars($product['name_en']); ?>"
+                                                 class="w-10 h-10 rounded object-cover mr-3">
+                                            <span class="text-sm text-gray-900">
+                                                <?php echo truncate($product['name_en'], 30); ?>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">
+                                        <?php echo ucfirst($product['category']); ?>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <?php if ($product['is_active']): ?>
+                                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-600">Active</span>
+                                        <?php else: ?>
+                                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Inactive</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <?php if ($product['is_featured']): ?>
+                                            <i class="fas fa-star text-yellow-400"></i>
+                                        <?php else: ?>
+                                            <i class="far fa-star text-gray-300"></i>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                                    No products yet
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include __DIR__ . '/includes/footer.php'; ?>

@@ -1,182 +1,388 @@
 <?php
-// includes/functions.php
-
 /**
- * Redirect to another page
+ * Common Functions
+ * PT Komodo Industrial Indonesia
  */
-function redirect($url) {
-    header("Location: " . $url);
-    exit;
+
+// Prevent direct access
+if (!defined('APP_ACCESS')) {
+    die('Direct access not permitted');
 }
 
 /**
  * Sanitize input data
  */
-function sanitize_input($data) {
-    return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
-}
-
-/**
- * Check if user is logged in as admin
- */
-function is_admin_logged_in() {
-    return isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
-}
-
-/**
- * Require admin authentication
- */
-function require_admin_auth() {
-    if (!is_admin_logged_in()) {
-        redirect('login.php');
-    }
-}
-
-/**
- * Format price with currency
- */
-function format_price($price) {
-    return '$' . number_format($price, 2);
-}
-
-/**
- * Get featured products
- */
-function get_featured_products($conn, $limit = 6) {
-    $products = [];
-    $sql = "SELECT * FROM products WHERE featured = 1 AND status = 'active' LIMIT ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $limit);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    while($row = $result->fetch_assoc()) {
-        $products[] = $row;
-    }
-    
-    return $products;
-}
-
-/**
- * Get all active products
- */
-function get_all_products($conn) {
-    $products = [];
-    $sql = "SELECT * FROM products WHERE status = 'active' ORDER BY created_at DESC";
-    $result = $conn->query($sql);
-    
-    if ($result && $result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
-            $products[] = $row;
+function sanitize($data) {
+    if (is_array($data)) {
+        foreach ($data as $key => $value) {
+            $data[$key] = sanitize($value);
         }
+        return $data;
     }
-    
-    return $products;
+    return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
 }
 
 /**
- * Upload image and return filename
+ * Redirect to a URL
  */
-function upload_image($file, $upload_dir = '../uploads/') {
-    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    $max_size = 5 * 1024 * 1024; // 5MB
-    
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        return ['success' => false, 'error' => 'File upload error'];
+function redirect($url, $statusCode = 302) {
+    header('Location: ' . $url, true, $statusCode);
+    exit;
+}
+
+/**
+ * Check if request is POST
+ */
+function isPost() {
+    return $_SERVER['REQUEST_METHOD'] === 'POST';
+}
+
+/**
+ * Check if request is GET
+ */
+function isGet() {
+    return $_SERVER['REQUEST_METHOD'] === 'GET';
+}
+
+/**
+ * Get POST data
+ */
+function post($key, $default = null) {
+    return isset($_POST[$key]) ? sanitize($_POST[$key]) : $default;
+}
+
+/**
+ * Get GET data
+ */
+function get($key, $default = null) {
+    return isset($_GET[$key]) ? sanitize($_GET[$key]) : $default;
+}
+
+/**
+ * Set flash message
+ */
+function setFlash($type, $message) {
+    if (!isset($_SESSION)) {
+        session_start();
+    }
+    $_SESSION['flash'] = [
+        'type' => $type,
+        'message' => $message
+    ];
+}
+
+/**
+ * Get and clear flash message
+ */
+function getFlash() {
+    if (!isset($_SESSION)) {
+        session_start();
     }
     
-    if (!in_array($file['type'], $allowed_types)) {
-        return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.'];
+    if (isset($_SESSION['flash'])) {
+        $flash = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+        return $flash;
+    }
+    return null;
+}
+
+/**
+ * Display flash message HTML
+ */
+function displayFlash() {
+    $flash = getFlash();
+    if ($flash) {
+        $alertClass = $flash['type'] === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+        echo '<div class="' . $alertClass . ' border-l-4 p-4 mb-4 rounded" role="alert">';
+        echo '<p class="font-medium">' . htmlspecialchars($flash['message']) . '</p>';
+        echo '</div>';
+    }
+}
+
+/**
+ * Format date
+ */
+function formatDate($date, $format = DISPLAY_DATE_FORMAT) {
+    if (empty($date)) return '-';
+    return date($format, strtotime($date));
+}
+
+/**
+ * Format datetime
+ */
+function formatDateTime($datetime, $format = DISPLAY_DATETIME_FORMAT) {
+    if (empty($datetime)) return '-';
+    return date($format, strtotime($datetime));
+}
+
+/**
+ * Get time ago
+ */
+function timeAgo($datetime) {
+    $timestamp = strtotime($datetime);
+    $diff = time() - $timestamp;
+    
+    if ($diff < 60) {
+        return $diff . ' seconds ago';
+    } elseif ($diff < 3600) {
+        return floor($diff / 60) . ' minutes ago';
+    } elseif ($diff < 86400) {
+        return floor($diff / 3600) . ' hours ago';
+    } elseif ($diff < 604800) {
+        return floor($diff / 86400) . ' days ago';
+    } else {
+        return formatDateTime($datetime);
+    }
+}
+
+/**
+ * Generate CSRF token
+ */
+function generateCsrfToken() {
+    if (!isset($_SESSION)) {
+        session_start();
+    }
+    if (empty($_SESSION[CSRF_TOKEN_NAME])) {
+        $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+    }
+    return $_SESSION[CSRF_TOKEN_NAME];
+}
+
+/**
+ * Verify CSRF token
+ */
+function verifyCsrfToken($token) {
+    if (!isset($_SESSION)) {
+        session_start();
+    }
+    return isset($_SESSION[CSRF_TOKEN_NAME]) && hash_equals($_SESSION[CSRF_TOKEN_NAME], $token);
+}
+
+/**
+ * Upload file dengan perbaikan path
+ */
+function uploadFile($file, $destination, $allowedTypes = ALLOWED_IMAGE_TYPES, $maxSize = UPLOAD_MAX_SIZE) {
+    // Check if file was uploaded
+    if (!isset($file) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'error' => 'No file uploaded or upload error'];
     }
     
-    if ($file['size'] > $max_size) {
-        return ['success' => false, 'error' => 'File too large. Maximum size is 5MB.'];
+    // Check file size
+    if ($file['size'] > $maxSize) {
+        return ['success' => false, 'error' => 'File size exceeds maximum allowed size'];
+    }
+    
+    // Check file type
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['success' => false, 'error' => 'Invalid file type'];
+    }
+    
+    // Check file extension
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, ALLOWED_IMAGE_EXTENSIONS)) {
+        return ['success' => false, 'error' => 'Invalid file extension'];
     }
     
     // Generate unique filename
-    $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-    $filename = uniqid() . '_' . time() . '.' . $file_extension;
-    $filepath = $upload_dir . $filename;
+    $filename = uniqid() . '_' . time() . '.' . $extension;
+    $filepath = $destination . '/' . $filename;
     
-    if (move_uploaded_file($file['tmp_name'], $filepath)) {
-        return ['success' => true, 'filename' => $filename];
-    } else {
-        return ['success' => false, 'error' => 'Failed to move uploaded file.'];
+    // Create directory if not exists
+    if (!file_exists($destination)) {
+        mkdir($destination, 0755, true);
     }
+    
+    // Move uploaded file
+    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+        return [
+            'success' => true, 
+            'filename' => $filename, 
+            'filepath' => $filepath,
+            'url' => getImageUrlFromPath($filepath)
+        ];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to move uploaded file'];
 }
 
 /**
- * Delete image file
+ * Get image URL from file path
  */
-function delete_image($filename, $upload_dir = '../uploads/') {
-    if (!empty($filename) && file_exists($upload_dir . $filename)) {
-        return unlink($upload_dir . $filename);
+function getImageUrlFromPath($filepath) {
+    // Convert absolute path to URL
+    $relativePath = str_replace(ROOT_PATH, '', $filepath);
+    $relativePath = str_replace('\\', '/', $relativePath);
+    return BASE_URL . $relativePath;
+}
+
+/**
+ * Delete file
+ */
+function deleteFile($filepath) {
+    if (file_exists($filepath)) {
+        return unlink($filepath);
     }
     return false;
 }
 
 /**
- * Display success message
+ * Get client IP address
  */
-function display_success($message) {
-    if (!empty($message)) {
-        echo '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">' . htmlspecialchars($message) . '</div>';
+function getClientIp() {
+    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+        return $_SERVER['HTTP_CLIENT_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        return $_SERVER['HTTP_X_FORWARDED_FOR'];
+    } else {
+        return $_SERVER['REMOTE_ADDR'];
     }
 }
 
 /**
- * Display error message
+ * Get user agent
  */
-function display_error($message) {
-    if (!empty($message)) {
-        echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">' . htmlspecialchars($message) . '</div>';
-    }
+function getUserAgent() {
+    return $_SERVER['HTTP_USER_AGENT'] ?? '';
 }
 
 /**
- * Get contact form submissions
+ * Validate email
  */
-function get_contact_submissions($conn, $limit = 50) {
-    $contacts = [];
-    $sql = "SELECT * FROM contacts ORDER BY created_at DESC LIMIT ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $limit);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    while($row = $result->fetch_assoc()) {
-        $contacts[] = $row;
-    }
-    
-    return $contacts;
+function isValidEmail($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
 /**
- * Get dashboard statistics
+ * Validate phone number (Indonesian format)
  */
-function get_dashboard_stats($conn) {
-    $stats = [];
-    
-    // Total products
-    $sql = "SELECT COUNT(*) as total FROM products WHERE status = 'active'";
-    $result = $conn->query($sql);
-    $stats['total_products'] = $result ? $result->fetch_assoc()['total'] : 0;
-    
-    // Total contacts
-    $sql = "SELECT COUNT(*) as total FROM contacts";
-    $result = $conn->query($sql);
-    $stats['total_contacts'] = $result ? $result->fetch_assoc()['total'] : 0;
-    
-    // Featured products
-    $sql = "SELECT COUNT(*) as total FROM products WHERE featured = 1 AND status = 'active'";
-    $result = $conn->query($sql);
-    $stats['featured_products'] = $result ? $result->fetch_assoc()['total'] : 0;
-    
-    // Recent contacts (last 7 days)
-    $sql = "SELECT COUNT(*) as total FROM contacts WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-    $result = $conn->query($sql);
-    $stats['recent_contacts'] = $result ? $result->fetch_assoc()['total'] : 0;
-    
-    return $stats;
+function isValidPhone($phone) {
+    $phone = preg_replace('/[^0-9]/', '', $phone);
+    return preg_match('/^(08|628|\+628)[0-9]{8,11}$/', $phone);
 }
-?>
+
+/**
+ * Truncate text
+ */
+function truncate($text, $length = 100, $suffix = '...') {
+    if (strlen($text) <= $length) {
+        return $text;
+    }
+    return substr($text, 0, $length) . $suffix;
+}
+
+/**
+ * Slugify string
+ */
+function slugify($text) {
+    $text = preg_replace('~[^\pL\d]+~u', '-', $text);
+    $text = iconv('utf-8', 'us-ascii//TRANSLIT', $text);
+    $text = preg_replace('~[^-\w]+~', '', $text);
+    $text = trim($text, '-');
+    $text = preg_replace('~-+~', '-', $text);
+    $text = strtolower($text);
+    return empty($text) ? 'n-a' : $text;
+}
+
+/**
+ * Debug print
+ */
+function debug($data, $die = false) {
+    echo '<pre>';
+    print_r($data);
+    echo '</pre>';
+    if ($die) die();
+}
+
+/**
+ * Get pagination data
+ */
+function getPaginationData($totalItems, $currentPage = 1, $itemsPerPage = ITEMS_PER_PAGE) {
+    $totalPages = ceil($totalItems / $itemsPerPage);
+    $currentPage = max(1, min($currentPage, $totalPages));
+    $offset = ($currentPage - 1) * $itemsPerPage;
+    
+    return [
+        'total_items' => $totalItems,
+        'total_pages' => $totalPages,
+        'current_page' => $currentPage,
+        'items_per_page' => $itemsPerPage,
+        'offset' => $offset,
+        'has_prev' => $currentPage > 1,
+        'has_next' => $currentPage < $totalPages
+    ];
+}
+
+/**
+ * Render pagination HTML
+ */
+function renderPagination($pagination, $baseUrl) {
+    if ($pagination['total_pages'] <= 1) return '';
+    
+    $html = '<div class="flex justify-center mt-8">';
+    $html .= '<nav class="inline-flex rounded-md shadow">';
+    
+    // Previous button
+    if ($pagination['has_prev']) {
+        $html .= '<a href="' . $baseUrl . '?page=' . ($pagination['current_page'] - 1) . '" class="px-3 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</a>';
+    }
+    
+    // Page numbers
+    for ($i = 1; $i <= $pagination['total_pages']; $i++) {
+        $activeClass = $i === $pagination['current_page'] ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50';
+        $html .= '<a href="' . $baseUrl . '?page=' . $i . '" class="px-4 py-2 border border-gray-300 text-sm font-medium ' . $activeClass . '">' . $i . '</a>';
+    }
+    
+    // Next button
+    if ($pagination['has_next']) {
+        $html .= '<a href="' . $baseUrl . '?page=' . ($pagination['current_page'] + 1) . '" class="px-3 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">Next</a>';
+    }
+    
+    $html .= '</nav>';
+    $html .= '</div>';
+    
+    return $html;
+}
+
+/**
+ * Get current URL
+ */
+function currentUrl() {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    return $protocol . "://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+}
+
+/**
+ * Check if current page is active
+ */
+function isActivePage($page) {
+    $currentUrl = $_SERVER['REQUEST_URI'];
+    return strpos($currentUrl, $page) !== false;
+}
+
+/**
+ * Get default product image
+ */
+function getDefaultProductImage() {
+    return IMAGES_URL . '/default-product.jpg';
+}
+
+/**
+ * Check if image exists
+ */
+function imageExists($imageUrl) {
+    if (empty($imageUrl)) return false;
+    
+    // Check if it's a local file
+    if (strpos($imageUrl, BASE_URL) === 0) {
+        $localPath = str_replace(BASE_URL, ROOT_PATH, $imageUrl);
+        return file_exists($localPath);
+    }
+    
+    // For external URLs, we assume they exist
+    return true;
+}

@@ -1,188 +1,235 @@
 <?php
-// public/contact.php
-require_once '../config/database.php';
+/**
+ * Frontend Contact Page
+ * PT Komodo Industrial Indonesia
+ */
 
-// Ensure $conn is initialized from database.php
-if (!isset($conn)) {
-    // Try initializing $conn if database.php returns a connection variable
-    if (function_exists('getDbConnection')) {
-        $conn = getDbConnection();
-    } elseif (isset($db) && $db instanceof mysqli) {
-        $conn = $db;
-    } else {
-        die('Database connection not established.');
+define('APP_ACCESS', true);
+
+// Load configurations
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+// Handle form submission
+if (isPost()) {
+    $full_name = post('full_name');
+    $email = post('email');
+    $phone = post('phone', '');
+    $subject = post('subject');
+    $message = post('message');
+
+    $errors = [];
+
+    // Validation
+    if (empty($full_name)) {
+        $errors[] = 'Full name is required';
     }
-}
 
-$success = '';
-$error = '';
+    if (empty($email) || !isValidEmail($email)) {
+        $errors[] = 'Valid email is required';
+    }
 
-// Process form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $subject = trim($_POST['subject'] ?? '');
-    $message = trim($_POST['message'] ?? '');
+    if (empty($subject)) {
+        $errors[] = 'Subject is required';
+    }
 
-    // Basic validation
-    if (empty($name) || empty($email) || empty($message)) {
-        $error = "Please fill in all required fields.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Please enter a valid email address.";
-    } else {
-        // Save to database
-        $stmt = $conn->prepare("INSERT INTO contacts (name, email, phone, subject, message, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("sssss", $name, $email, $phone, $subject, $message);
+    if (empty($message)) {
+        $errors[] = 'Message is required';
+    }
 
-        if ($stmt->execute()) {
-            $success = "Thank you for your message! We'll get back to you soon.";
+    if (empty($errors)) {
+        $sql = "INSERT INTO contacts (full_name, email, phone, subject, message, created_at) 
+                VALUES (?, ?, ?, ?, ?, NOW())";
+        $params = [$full_name, $email, $phone, $subject, $message];
+
+        if ($db->query($sql, $params)) {
+            setFlash('success', 'Your message has been sent successfully! We will get back to you soon.');
+            redirect('contact.php');
         } else {
-            $error = "Sorry, there was an error sending your message. Please try again.";
+            $errors[] = 'Failed to send message. Please try again.';
         }
     }
 }
+
+$pageTitle = 'Contact Us';
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo APP_NAME; ?> | <?php echo $pageTitle; ?></title>
+    <meta name="description" content="Get in touch with PT Komodo Industrial Indonesia for inquiries and support.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Navigation -->
+    <?php include __DIR__ . '/../includes/header.php'; ?>
 
-<?php include '../includes/header.php'; ?>
-
-<!-- Contact Header -->
-<section class="py-20 bg-gray-900 mt-16">
-    <div class="container mx-auto px-6 text-center">
-        <h1 class="text-4xl md:text-5xl font-bold mb-4" data-en="Contact Us" data-id="Hubungi Kami">Contact <span class="text-green-500">Us</span></h1>
-        <p class="text-gray-400 max-w-2xl mx-auto" data-en="Get in touch with our team for any inquiries about our products or services" data-id="Hubungi tim kami untuk pertanyaan tentang produk atau layanan kami">
-            Get in touch with our team for any inquiries about our products or services
-        </p>
-    </div>
-</section>
-
-<!-- Contact Section -->
-<section class="py-20 bg-black">
-    <div class="container mx-auto px-6">
-        <div class="flex flex-col lg:flex-row">
-            <div class="lg:w-1/2 mb-12 lg:mb-0 lg:pr-12 fade-in">
-                <h2 class="text-4xl md:text-5xl font-bold mb-8" data-en="Let's Collaborate" data-id="Mari Berkolaborasi">Let's Collaborate</h2>
-                <p class="text-gray-400 mb-8 max-w-lg" data-en="Blank." data-id="Kosong.">
-                    Kosong.
-                </p>
-                
-                <div class="space-y-6">
-                    <div class="flex items-start">
-                        <div class="text-green-500 text-xl mr-4 mt-1">
-                            <i class="fas fa-map-marker-alt"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-bold mb-1" data-en="Address" data-id="Alamat">Address</h4>
-                            <p class="text-gray-400">Sepatan Timur, Tangerang</p>
-                        </div>
-                    </div>
-                    <div class="flex items-start">
-                        <div class="text-green-500 text-xl mr-4 mt-1">
-                            <i class="fas fa-phone-alt"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-bold mb-1" data-en="Contact" data-id="Kontak">Contact</h4>
-                            <p class="text-gray-400">021-123-4567<br>shellanonym@gmail.com</p>
-                        </div>
-                    </div>
-                    <div class="flex items-start">
-                        <div class="text-green-500 text-xl mr-4 mt-1">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-bold mb-1" data-en="Business Hours" data-id="Jam Operasional">Business Hours</h4>
-                            <p class="text-gray-400" data-en="Monday - Friday: 8:00 AM - 5:00 PM" data-id="Senin - Jumat: 08:00 - 17:00">Monday - Friday: 8:00 AM - 5:00 PM</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mt-8 flex space-x-4">
-                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-black transition duration-300">
-                        <i class="fab fa-instagram"></i>
-                    </a>
-                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-black transition duration-300">
-                        <i class="fab fa-youtube"></i>
-                    </a>
-                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-black transition duration-300">
-                        <i class="fab fa-facebook-f"></i>
-                    </a>
-                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-black transition duration-300">
-                        <i class="fab fa-tiktok"></i>
-                    </a>
-                </div>
-            </div>
-            
-            <div class="lg:w-1/2 fade-in">
-                <?php if ($success): ?>
-                    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
-                        <?php echo htmlspecialchars($success); ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($error): ?>
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-                        <?php echo htmlspecialchars($error); ?>
-                    </div>
-                <?php endif; ?>
-                
-                <form method="POST" action="" class="bg-gray-800 p-8 rounded-xl">
-                    <div class="mb-6">
-                        <label for="name" class="block text-gray-300 mb-2" data-en="Full Name" data-id="Nama Lengkap">Full Name *</label>
-                        <input type="text" id="name" name="name" required 
-                               value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>"
-                               class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white">
-                    </div>
-                    <div class="mb-6">
-                        <label for="email" class="block text-gray-300 mb-2" data-en="Email Address" data-id="Alamat Email">Email Address *</label>
-                        <input type="email" id="email" name="email" required 
-                               value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
-                               class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white">
-                    </div>
-                    <div class="mb-6">
-                        <label for="phone" class="block text-gray-300 mb-2" data-en="Phone Number" data-id="Nomor Telepon">Phone Number</label>
-                        <input type="tel" id="phone" name="phone" 
-                               value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
-                               class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white">
-                    </div>
-                    <div class="mb-6">
-                        <label for="subject" class="block text-gray-300 mb-2" data-en="Subject" data-id="Subjek">Subject</label>
-                        <select id="subject" name="subject" class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white">
-                            <option value="" data-en="Select a subject" data-id="Pilih subjek">Select a subject</option>
-                            <option value="product" <?php echo ($_POST['subject'] ?? '') == 'product' ? 'selected' : ''; ?> data-en="Product Inquiry" data-id="Pertanyaan Produk">Product Inquiry</option>
-                            <option value="wholesale" <?php echo ($_POST['subject'] ?? '') == 'wholesale' ? 'selected' : ''; ?> data-en="Wholesale Inquiry" data-id="Pertanyaan Grosir">Wholesale Inquiry</option>
-                            <option value="custom" <?php echo ($_POST['subject'] ?? '') == 'custom' ? 'selected' : ''; ?> data-en="Custom Order" data-id="Pesanan Kustom">Custom Order</option>
-                            <option value="other" <?php echo ($_POST['subject'] ?? '') == 'other' ? 'selected' : ''; ?> data-en="Other" data-id="Lainnya">Other</option>
-                        </select>
-                    </div>
-                    <div class="mb-6">
-                        <label for="message" class="block text-gray-300 mb-2" data-en="Your Message" data-id="Pesan Anda">Your Message *</label>
-                        <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"><?php echo htmlspecialchars($_POST['message'] ?? ''); ?></textarea>
-                    </div>
-                    <button type="submit" class="w-full px-6 py-3 bg-green-600 text-black font-medium rounded-lg hover:bg-green-500 transition duration-300 flex items-center justify-center">
-                        <span id="submit-text" data-en="Send Message" data-id="Kirim Pesan">Send Message</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Map Section -->
-<section class="py-20 bg-gray-900">
-    <div class="container mx-auto px-6">
-        <div class="text-center mb-12">
-            <h2 class="text-3xl md:text-4xl font-bold mb-4" data-en="Find Us" data-id="Temukan Kami">Find <span class="text-green-500">Us</span></h2>
-        </div>
-        <div class="bg-gray-800 rounded-xl p-8">
-            <div class="h-96 bg-gray-700 rounded-lg flex items-center justify-center">
+    <!-- Main Content -->
+    <div class="pt-20 min-h-screen">
+        <!-- Hero Section -->
+        <section class="bg-gray-900 py-20">
+            <div class="container mx-auto px-6">
                 <div class="text-center">
-                    <i class="fas fa-map-marked-alt text-green-500 text-6xl mb-4"></i>
-                    <p class="text-gray-400" data-en="Interactive map coming soon" data-id="Peta interaktif segera hadir">Interactive map coming soon</p>
-                    <p class="text-gray-500 mt-2">Sepatan Timur, Tangerang</p>
+                    <h1 class="text-4xl md:text-6xl font-bold mb-4">Contact <span class="text-green-500">Us</span></h1>
+                    <p class="text-gray-400 max-w-2xl mx-auto text-lg">
+                        Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+                    </p>
                 </div>
             </div>
-        </div>
-    </div>
-</section>
+        </section>
 
-<?php include '../includes/footer.php'; ?>
+        <!-- Contact Section -->
+        <section class="py-20">
+            <div class="container mx-auto px-6">
+                <div class="max-w-6xl mx-auto">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        <!-- Contact Form -->
+                        <div class="bg-gray-800 rounded-2xl p-8">
+                            <h2 class="text-2xl font-bold mb-6">Send us a Message</h2>
+
+                            <?php displayFlash(); ?>
+
+                            <?php if (!empty($errors)): ?>
+                                <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 rounded-lg p-4 mb-6">
+                                    <div class="flex items-start">
+                                        <i class="fas fa-exclamation-circle mt-0.5 mr-3"></i>
+                                        <div>
+                                            <?php foreach ($errors as $error): ?>
+                                                <p><?php echo htmlspecialchars($error); ?></p>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <form method="POST" action="">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label for="full_name" class="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
+                                        <input type="text" 
+                                               id="full_name" 
+                                               name="full_name" 
+                                               value="<?php echo htmlspecialchars(post('full_name', '')); ?>"
+                                               class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"
+                                               required>
+                                    </div>
+                                    <div>
+                                        <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email *</label>
+                                        <input type="email" 
+                                               id="email" 
+                                               name="email" 
+                                               value="<?php echo htmlspecialchars(post('email', '')); ?>"
+                                               class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"
+                                               required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label for="phone" class="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+                                    <input type="tel" 
+                                           id="phone" 
+                                           name="phone" 
+                                           value="<?php echo htmlspecialchars(post('phone', '')); ?>"
+                                           class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white">
+                                </div>
+
+                                <div class="mb-4">
+                                    <label for="subject" class="block text-sm font-medium text-gray-300 mb-2">Subject *</label>
+                                    <select id="subject" 
+                                            name="subject" 
+                                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"
+                                            required>
+                                        <option value="">Select Subject</option>
+                                        <?php foreach (CONTACT_SUBJECTS as $key => $value): ?>
+                                            <option value="<?php echo $key; ?>" <?php echo post('subject') === $key ? 'selected' : ''; ?>>
+                                                <?php echo $value['en']; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="mb-6">
+                                    <label for="message" class="block text-sm font-medium text-gray-300 mb-2">Message *</label>
+                                    <textarea id="message" 
+                                              name="message" 
+                                              rows="5"
+                                              class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"
+                                              required><?php echo htmlspecialchars(post('message', '')); ?></textarea>
+                                </div>
+
+                                <button type="submit" 
+                                        class="w-full px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition duration-200">
+                                    Send Message
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div class="bg-gray-800 rounded-2xl p-8">
+                            <h2 class="text-2xl font-bold mb-6">Get in Touch</h2>
+                            
+                            <div class="space-y-6">
+                                <div class="flex items-start">
+                                    <div class="bg-green-600 p-3 rounded-lg mr-4">
+                                        <i class="fas fa-map-marker-alt text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold mb-1">Address</h3>
+                                        <p class="text-gray-400">Serang, Banten, Indonesia</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="bg-green-600 p-3 rounded-lg mr-4">
+                                        <i class="fas fa-phone text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold mb-1">Phone</h3>
+                                        <p class="text-gray-400">+62 812 3456 7890</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="bg-green-600 p-3 rounded-lg mr-4">
+                                        <i class="fas fa-envelope text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold mb-1">Email</h3>
+                                        <p class="text-gray-400">info@komodoindustrial.com</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="bg-green-600 p-3 rounded-lg mr-4">
+                                        <i class="fas fa-clock text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold mb-1">Business Hours</h3>
+                                        <p class="text-gray-400">Monday - Friday: 8:00 AM - 5:00 PM</p>
+                                        <p class="text-gray-400">Saturday: 8:00 AM - 12:00 PM</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <?php include __DIR__ . '/../includes/footer.php'; ?>
+</body>
+</html>

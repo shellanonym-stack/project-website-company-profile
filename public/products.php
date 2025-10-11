@@ -1,134 +1,153 @@
+
 <?php
-// public/products.php
-require_once '../config/database.php';
+/**
+ * Frontend Products Page
+ * PT Komodo Industrial Indonesia
+ */
 
-// Set currency symbol (make this dynamic as needed, e.g., from config or user session)
-$currencySymbol = '$';
+define('APP_ACCESS', true);
 
-// Check database connection
-if (!isset($conn) || $conn->connect_error) {
-    die("Database connection failed: " . (isset($conn) ? $conn->connect_error : 'Connection variable not set'));
+// Load configurations
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+// Get category from query string
+$category = get('category', '');
+$page = (int)get('page', 1);
+
+// Build query
+$where = ['is_active = 1'];
+$params = [];
+
+if (!empty($category) && array_key_exists($category, PRODUCT_CATEGORIES)) {
+    $where[] = 'category = ?';
+    $params[] = $category;
 }
 
-// Example SQL query (replace with your actual query)
-$sql = "SELECT * FROM products";
-$result = $conn->query($sql);
+$whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
-$products = [];
-if ($result === false) {
-    // Handle SQL error
-    error_log("Database query failed: " . $conn->error);
-    echo "<div style='color: red; text-align: center;'>Failed to load products. Please try again later.</div>";
-} elseif ($result->num_rows > 0) {
-    while($row = $result->fetch_assoc()) {
-        $products[] = $row;
-    }
-}
+// Get total products
+$countSql = "SELECT COUNT(*) as count FROM products {$whereClause}";
+$totalItems = $db->fetchOne($countSql, $params)['count'];
+
+// Get pagination
+$pagination = getPaginationData($totalItems, $page, PRODUCTS_PER_PAGE);
+
+// Get products
+$sql = "SELECT * FROM products {$whereClause} ORDER BY display_order ASC, created_at DESC LIMIT ? OFFSET ?";
+$params[] = $pagination['items_per_page'];
+$params[] = $pagination['offset'];
+$products = $db->fetchAll($sql, $params);
+
+$pageTitle = 'Our Products';
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo APP_NAME; ?> | <?php echo $pageTitle; ?></title>
+    <meta name="description" content="Explore our premium stainless steel cookware and tableware products.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+        }
+        
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .product-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Navigation -->
+    <?php include __DIR__ . '/../includes/header.php'; ?>
 
-<?php include '../includes/header.php'; ?>
+    <!-- Main Content -->
+    <div class="pt-20 min-h-screen">
+        <!-- Hero Section -->
+        <section class="bg-gray-900 py-20">
+            <div class="container mx-auto px-6">
+                <div class="text-center">
+                    <h1 class="text-4xl md:text-6xl font-bold mb-4">Our <span class="text-green-500">Products</span></h1>
+                    <p class="text-gray-400 max-w-2xl mx-auto text-lg">
+                        Discover our high-quality stainless steel cookware designed for professional and home use.
+                    </p>
+                </div>
+            </div>
+        </section>
 
-<!-- Products Header -->
-<section class="py-20 bg-gray-900 mt-16">
-    <div class="container mx-auto px-6 text-center">
-        <h1 class="text-4xl md:text-5xl font-bold mb-4" data-en="Our Products" data-id="Produk Kami">Our <span class="text-green-500">Products</span></h1>
-        <p class="text-gray-400 max-w-2xl mx-auto" data-en="Designed for social media & product packaging." data-id="Desain untuk sosial media dan produk..">
-            Designed for social media & product packaging
-        </p>
-    </div>
-</section>
+        <!-- Products Section -->
+        <section class="py-20">
+            <div class="container mx-auto px-6">
+                <!-- Category Filters -->
+                <div class="flex flex-wrap justify-center gap-4 mb-12">
+                    <a href="products.php" 
+                       class="px-6 py-3 rounded-full border-2 border-green-600 text-white hover:bg-green-600 transition duration-300 <?php echo empty($category) ? 'bg-green-600' : ''; ?>">
+                        All Products
+                    </a>
+                    <?php foreach (PRODUCT_CATEGORIES as $key => $cat): ?>
+                        <a href="products.php?category=<?php echo $key; ?>" 
+                           class="px-6 py-3 rounded-full border-2 border-green-600 text-white hover:bg-green-600 transition duration-300 <?php echo $category === $key ? 'bg-green-600' : ''; ?>">
+                            <?php echo $cat['en']; ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
 
-<!-- All Products -->
-<section class="py-20 bg-black">
-    <div class="container mx-auto px-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <?php if (!empty($products)): ?>
-                <?php foreach($products as $product): ?>
-                <div class="project-card bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition duration-300 fade-in">
-                    <div class="relative overflow-hidden h-64">
-                        <img src="../uploads/<?php echo htmlspecialchars($product['image']); ?>" 
-                             alt="<?php echo htmlspecialchars($product['name']); ?>" 
-                             class="w-full h-full object-cover transition duration-500 hover:scale-105">
-                    </div>
-                    <div class="p-6">
-                            <button type="button" class="text-green-500 font-medium inline-flex items-center focus:outline-none" aria-label="View Details">
-                                View Details <i class="fas fa-arrow-right ml-2"></i>
-                            </button>
-                            <span class="text-green-500 font-bold text-lg"><?php echo $currencySymbol . number_format($product['price'], 2); ?></span>
-                            <a href="#" class="text-green-500 font-medium inline-flex items-center">
-                                View Details <i class="fas fa-arrow-right ml-2"></i>
-                            </a>
+                <!-- Products Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    <?php if (!empty($products)): ?>
+                        <?php foreach ($products as $product): ?>
+                            <div class="product-card bg-gray-800 rounded-xl overflow-hidden shadow-lg">
+                                <div class="relative overflow-hidden h-64">
+                                    <img src="<?php echo htmlspecialchars($product['image']); ?>" 
+                                         alt="<?php echo htmlspecialchars($product['name_en']); ?>" 
+                                         class="w-full h-full object-cover transition duration-500 hover:scale-105">
+                                </div>
+                                <div class="p-6">
+                                    <h3 class="text-xl font-bold mb-2"><?php echo htmlspecialchars($product['name_en']); ?></h3>
+                                    <p class="text-gray-400 mb-4 line-clamp-3">
+                                        <?php echo truncate($product['description_en'], 100); ?>
+                                    </p>
+                                    <div class="flex items-center justify-between">
+                                        <span class="px-3 py-1 bg-green-600 text-white text-sm rounded-full">
+                                            <?php echo PRODUCT_CATEGORIES[$product['category']]['en']; ?>
+                                        </span>
+                                        <a href="#product-<?php echo $product['id']; ?>" 
+                                           class="text-green-500 hover:text-green-400 font-medium">
+                                            View Details
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="col-span-full text-center py-12">
+                            <p class="text-gray-400 text-lg">No products found in this category.</p>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <!-- Fallback static products -->
-                <div class="project-card bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition duration-300 fade-in">
-                    <div class="relative overflow-hidden h-64">
-                        <img src="../uploads/desain.jpg" 
-                             alt="contoh aja" 
-                             class="w-full h-full object-cover transition duration-500 hover:scale-105">
+
+                <!-- Pagination -->
+                <?php if ($pagination['total_pages'] > 1): ?>
+                    <div class="mt-12">
+                        <?php echo renderPagination($pagination, 'products.php'); ?>
                     </div>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold mb-2" data-en="demon slayer" data-id="pembasmi iblis">Demon Slayer</h3>
-                        <p class="text-gray-400 mb-4" data-en="Stainless basin with a beautiful and charming polish made from Non Magnet stainless" data-id="Baskom Stainless dengan polesan cantik dan menawan berbahan stainless Non Magnet">Stainless basin with a beautiful and charming polish made from Non Magnet stainless</p>
-                        <div class="flex justify-between items-center">
-                            <span class="text-green-500 font-bold text-lg"><?php echo $currencySymbol . number_format(45.00, 2); ?></span>
-                            <a href="#" class="text-green-500 font-medium inline-flex items-center">
-                                View Details <i class="fas fa-arrow-right ml-2"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <!-- Add other static products as needed -->
-            <?php endif; ?>
-        </div>
+                <?php endif; ?>
+            </div>
+        </section>
     </div>
-</section>
 
-<!-- Product Categories -->
-<section class="py-20 bg-gray-900">
-    <div class="container mx-auto px-6">
-        <div class="text-center mb-16">
-            <h2 class="text-3xl md:text-4xl font-bold mb-4" data-en="Product Categories" data-id="Kategori Produk">Product <span class="text-green-500">Categories</span></h2>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div class="text-center p-6 bg-gray-800 rounded-xl hover:bg-gray-700 transition duration-300">
-                <div class="text-green-500 text-3xl mb-4">
-                    <i class="fas fa-utensils"></i>
-                </div>
-                <h3 class="font-bold mb-2" data-en="sample-1" data-id="Contoh-1">Sample-1</h3>
-                <p class="text-gray-400 text-sm" data-en="sample" data-id="contoh">contoh</p>
-            </div>
-            <div class="text-center p-6 bg-gray-800 rounded-xl hover:bg-gray-700 transition duration-300">
-                <div class="text-green-500 text-3xl mb-4">
-                    <i class="fas fa-concierge-bell"></i>
-                </div>
-                <h3 class="font-bold mb-2" data-en="sample-2" data-id="Contoh-2">sample-2</h3>
-                <p class="text-gray-400 text-sm" data-en="sample-2" data-id="contoh-2">sample-2</p>
-            </div>
-            <div class="text-center p-6 bg-gray-800 rounded-xl hover:bg-gray-700 transition duration-300">
-                <div class="text-green-500 text-3xl mb-4">
-                    <i class="fas fa-blender"></i>
-                </div>
-                <h3 class="font-bold mb-2" data-en="sample-3" data-id="Contoh-3">sample-3</h3>
-                <p class="text-gray-400 text-sm" data-en="sample-3" data-id="contoh-3">Sample-3</p>
-            </div>
-            <div class="text-center p-6 bg-gray-800 rounded-xl hover:bg-gray-700 transition duration-300">
-                <div class="text-green-500 text-3xl mb-4">
-                    <i class="fas fa-chess-knight"></i>
-                </div>
-                <h3 class="font-bold mb-2" data-en="Specialty" data-id="Khusus">Specialty</h3>
-                <p class="text-gray-400 text-sm" data-en="Professional equipment" data-id="Peralatan profesional">Professional equipment</p>
-            </div>
-        </div>
-<?php 
-if (isset($conn) && $conn instanceof mysqli) {
-    $conn->close();
-}
-include '../includes/footer.php'; 
-?>
-</section>
-
-<?php include '../includes/footer.php'; ?>
+    <?php include __DIR__ . '/../includes/footer.php'; ?>
+</body>
+</html>
